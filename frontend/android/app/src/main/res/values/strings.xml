@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Areca Farm</string>
+    <string name="title_activity_main">Areca Farm</string>
+    <string name="package_name">com.areca.farm</string>
+    <string name="custom_url_scheme">com.areca.farm</string>
+</resources>
