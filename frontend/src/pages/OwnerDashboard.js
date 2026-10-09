@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate }         from "react-router-dom";
 import { getOwnerStats, generateCode } from "../api/client";
 import { useAuth }             from "../components/AuthContext";
@@ -16,12 +16,7 @@ export default function OwnerDashboard() {
   const [loading, setLoading]  = useState(true);
   const [codeMsg, setCodeMsg]  = useState({ text:"", ok:false });
 
-  useEffect(() => {
-    if (!user || user.role !== "owner") { navigate("/"); return; }
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getOwnerStats();
@@ -31,7 +26,12 @@ export default function OwnerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!user || user.role !== "owner") { navigate("/"); return; }
+    fetchStats();
+  }, [user, navigate, fetchStats]);
 
   const handleGenerateCode = async () => {
     setCodeMsg({ text:"", ok:false });

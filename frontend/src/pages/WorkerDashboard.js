@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate }         from "react-router-dom";
 import { getMyWorker }         from "../api/client";
 import { useAuth }             from "../components/AuthContext";
@@ -13,19 +13,19 @@ export default function WorkerDashboard() {
   const [row, setRow]        = useState(null);
   const [loading, setLoading]  = useState(true);
 
-  useEffect(() => {
-    if (!user || user.role !== "worker") { navigate("/"); return; }
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getMyWorker(user.company, user.managerName, user.name);
       setRow(res.data.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "worker") { navigate("/"); return; }
+    fetchData();
+  }, [user, navigate, fetchData]);
 
   if (loading) return (
     <div className="page-bg">

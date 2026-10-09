@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate }         from "react-router-dom";
 import { getMyFarmer }         from "../api/client";
 import { useAuth }             from "../components/AuthContext";
@@ -10,19 +10,19 @@ export default function FarmerDashboard() {
   const [row, setRow]        = useState(null);
   const [loading, setLoading]  = useState(true);
 
-  useEffect(() => {
-    if (!user || user.role !== "farmer") { navigate("/"); return; }
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getMyFarmer(user.company, user.managerName, user.name);
       setRow(res.data.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "farmer") { navigate("/"); return; }
+    fetchData();
+  }, [user, navigate, fetchData]);
 
   if (loading) return (
     <div className="page-bg">

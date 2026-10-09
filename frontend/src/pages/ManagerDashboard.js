@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate }         from "react-router-dom";
 import { getWorkers, addWorkerRow, getFarmers, addFarmerRow } from "../api/client";
 import { useAuth }             from "../components/AuthContext";
@@ -15,12 +15,7 @@ export default function ManagerDashboard() {
   const [farmerRows, setFarmerRows] = useState([]);
   const [loading, setLoading]       = useState(true);
 
-  useEffect(() => {
-    if (!user || user.role !== "manager") { navigate("/"); return; }
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [wRes, fRes] = await Promise.all([
@@ -34,7 +29,12 @@ export default function ManagerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "manager") { navigate("/"); return; }
+    fetchData();
+  }, [user, navigate, fetchData]);
 
   if (loading) return (
     <div className="page-bg">
