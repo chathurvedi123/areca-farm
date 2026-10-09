@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://areca-farm.onrender.com/",
+  baseURL: "https://areca-farm.onrender.com",
   timeout: 10000,
 });
 
