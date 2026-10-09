@@ -47,7 +47,7 @@ app.use("/api/workers", require("./routes/workers")); // worker records
 app.use("/api/farmers", require("./routes/farmers")); // farmer records
 app.use("/api/owner",   require("./routes/owner"));   // owner dashboard
 
-// Health check — visit http://localhost:5000 to verify
+// Health check — visit https://areca-farm.onrender.com: to verify
 app.get("/", (req, res) => {
   res.json({
     message: "🌿 Areca Farm Management API is running",
