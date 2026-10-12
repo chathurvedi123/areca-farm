@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // ── PUT YOUR RENDER URL HERE ──
-const BACKEND_URL = "https://areca-farm.onrender.com/";
+const BACKEND_URL = "https://areca-farm.onrender.com";
 
 const API = axios.create({
   baseURL: `${BACKEND_URL}/api`,
