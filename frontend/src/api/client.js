@@ -1,8 +1,14 @@
 import axios from "axios";
 
+// ── PUT YOUR RENDER URL HERE ──
+const BACKEND_URL = "https://YOUR-RENDER-URL.onrender.com";
+
 const API = axios.create({
-  baseURL: "https://areca-farm.onrender.com",
-  timeout: 10000,
+  baseURL: `${BACKEND_URL}/api`,
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 API.interceptors.request.use((config) => {
@@ -26,12 +32,16 @@ export const verifyManagerCode = (data) => API.post("/auth/verify-manager-code",
 export const getOwnerStats    = ()   => API.get("/owner/stats");
 export const generateCode     = ()   => API.post("/owner/generate-code");
 
-export const getWorkers   = (company, managerName) => API.get("/workers", { params: { company, managerName } });
-export const getMyWorker  = (company, managerName, name) => API.get("/workers/my", { params: { company, managerName, name } });
+export const getWorkers   = (company, managerName) =>
+  API.get("/workers", { params: { company, managerName } });
+export const getMyWorker  = (company, managerName, name) =>
+  API.get("/workers/my", { params: { company, managerName, name } });
 export const addWorkerRow = (data) => API.post("/workers", data);
 
-export const getFarmers   = (company, managerName) => API.get("/farmers", { params: { company, managerName } });
-export const getMyFarmer  = (company, managerName, name) => API.get("/farmers/my", { params: { company, managerName, name } });
+export const getFarmers   = (company, managerName) =>
+  API.get("/farmers", { params: { company, managerName } });
+export const getMyFarmer  = (company, managerName, name) =>
+  API.get("/farmers/my", { params: { company, managerName, name } });
 export const addFarmerRow = (data) => API.post("/farmers", data);
 
 export default API;
