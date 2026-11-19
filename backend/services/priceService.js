@@ -56,6 +56,10 @@ async function refresh() {
 
 function startAutoUpdate() {
   if (process.env.AUTO_UPDATE === "false") return;
+  if (!process.env.DATA_GOV_API_KEY && process.env.USE_COMMODITYONLINE !== "true") {
+    console.log("ℹ️  Auto update is off (add DATA_GOV_API_KEY to backend/.env to enable it)");
+    return;
+  }
   const run = () => refresh().then((r) => console.log("🔄 Auto update:", JSON.stringify(r))).catch((e) => console.log("🔄 Auto update failed:", e.message));
   setTimeout(run, 20000);
   setInterval(run, 6 * 60 * 60 * 1000);

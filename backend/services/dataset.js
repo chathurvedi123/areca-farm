@@ -23,6 +23,7 @@ const FALLBACK_PATHS = [
   path.join(__dirname, "..", "data", "dataset.xlsx"),
   path.join(__dirname, "..", "data", "dataset.htm"),
 ];
+const CACHE_VERSION = 3; // bump when parsing rules change -> old caches are ignored
 const CACHE_PATH = path.join(__dirname, "..", "data", "cache.json");
 const PREBUILT_PATH = path.join(__dirname, "..", "data", "prices.json"); // compact copy made by: npm run build-data
 
@@ -151,6 +152,12 @@ function mapHeaders(cells) {
   const m = {};
   cells.forEach((c, i) => {
     const t = String(c || "").toLowerCase();
+    if (/tumcos/.test(t)) { // TUMCOS columns: price lives here when "Modal" is empty
+      if (/avg|average/.test(t) && m.tAvg === undefined) m.tAvg = i;
+      else if (/\bhigh\b/.test(t) && m.tHigh === undefined) m.tHigh = i;
+      else if (/\blow\b/.test(t) && m.tLow === undefined) m.tLow = i;
+      return;
+    }
     if (m.date === undefined && /date/.test(t)) m.date = i;
     else if (m.district === undefined && /district/.test(t)) m.district = i;
     else if (m.market === undefined && /market|mandi|apmc/.test(t)) m.market = i;
@@ -160,6 +167,9 @@ function mapHeaders(cells) {
     else if (m.avg === undefined && /avg|average|modal/.test(t)) m.avg = i;
     else if (m.state === undefined && /state/.test(t)) m.state = i;
     else if (m.commodity === undefined && /commodity/.test(t)) m.commodity = i;
+    else if (m.source === undefined && /^source$/.test(t)) m.source = i;
+    else if (m.unit === undefined && /^unit$/.test(t)) m.unit = i;
+    else if (m.location === undefined && /^location$/.test(t)) m.location = i;
   });
   const a = m.avg !== undefined ? String(cells[m.avg]).toLowerCase() : "";
   m.mult = /\bkg\b|\/\s*kg|per kg/.test(a) && !/quintal|qtl/.test(a) ? 100 : 1; // price per kg -> per quintal
@@ -169,7 +179,7 @@ const validMap = (m) => m.date !== undefined && m.avg !== undefined && (m.distri
 
 const textOf = (v) => (v == null || v instanceof Date ? "" : String(v).trim());
 
-// one table/sheet row -> [date, district, market, variety, min, max, avg, rawDistrict]
+// one table/sheet row -> [date, district, market, variety, min, max, avg, rawDistrict, hadDistrict]
 function buildRow(map, get) {
   const price = (v) => {
     const x = parsePrice(v);
@@ -177,14 +187,43 @@ function buildRow(map, get) {
     return typeof v === "number" || !/kg/i.test(String(v)) ? x * (map.mult || 1) : x;
   };
   const date = parseDate(get(map.date));
-  const avg = price(get(map.avg));
+  const avg = price(get(map.avg)) ?? price(get(map.tAvg)); // "Modal", else "Average Price (TUMCOS)"
   if (!date || !avg || avg < 1000 || avg > 300000) return null;
-  let min = price(get(map.min)) ?? avg;
-  let max = price(get(map.max)) ?? avg;
+  let min = price(get(map.min)) ?? price(get(map.tLow)) ?? avg;
+  let max = price(get(map.max)) ?? price(get(map.tHigh)) ?? avg;
   if (min > max) [min, max] = [max, min];
+  const variety = textOf(get(map.variety));
+  if (/husk/i.test(variety)) return null; // arecanut husk is a by-product, not the nut
   const rawDistrict = textOf(get(map.district));
   const market = textOf(get(map.market)) || "-";
-  return [date, districtFor(rawDistrict, market), market, normVariety(textOf(get(map.variety))), min, max, avg, rawDistrict || market];
+  return [date, districtFor(rawDistrict, market), market, normVariety(variety), min, max, avg, rawDistrict || market, !!rawDistrict];
+}
+
+// market-name key that ignores words like APMC / market / yard
+const normMarket = (m) =>
+  String(m || "").toLowerCase().replace(/\b(apmc|market|yard|mandi)\b/g, " ").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+
+// Rows without a District value: learn market->district from rows that DO have one.
+function inferDistricts(rows) {
+  const learned = new Map();
+  for (const r of rows) {
+    if (r[8] !== true || !KNOWN.has(r[1])) continue;
+    const k = normMarket(r[2]);
+    if (!k) continue;
+    if (!learned.has(k)) learned.set(k, new Map());
+    const c = learned.get(k);
+    c.set(r[1], (c.get(r[1]) || 0) + 1);
+  }
+  let fixed = 0;
+  for (const r of rows) {
+    if (r[8] === true) continue;
+    const c = learned.get(normMarket(r[2]));
+    if (c) {
+      const best = [...c.entries()].sort((x, y) => y[1] - x[1])[0][0];
+      if (best !== r[1]) { r[1] = best; fixed++; }
+    }
+  }
+  return fixed;
 }
 
 // =====================================================================
@@ -326,7 +365,7 @@ async function loadRows() {
   if (!files.length) {
     throw new Error("Dataset not found. Looked for: " + [process.env.DATASET_PATH, ...LOCAL_PATHS, ...FALLBACK_PATHS].filter(Boolean).join("  |  "));
   }
-  const sig = files.map((f) => { const s = fs.statSync(f); return `${f}|${s.size}|${Math.round(s.mtimeMs)}`; }).join(";");
+  const sig = `v${CACHE_VERSION};` + files.map((f) => { const s = fs.statSync(f); return `${f}|${s.size}|${Math.round(s.mtimeMs)}`; }).join(";");
   try {
     const cache = JSON.parse(fs.readFileSync(CACHE_PATH, "utf8"));
     if (cache.sig === sig) return { rows: cache.rows, file: files.join(", "), files, perFile: cache.perFile, fromCache: true };
@@ -339,6 +378,7 @@ async function loadRows() {
     perFile[f] = got.length;
     for (const r of got) rows.push(r);
   }
+  inferDistricts(rows);
   if (!rows.length) {
     throw new Error("No price rows could be read from: " + files.join(", ") + ".  Run:  node scripts/inspect-dataset.js");
   }
@@ -352,7 +392,7 @@ async function loadRows() {
 // =====================================================================
 //  APPEND new rows (from the web) into the dataset file
 // =====================================================================
-const keyOf = (r) => `${r[0]}|${r[1]}|${String(r[2]).toLowerCase()}|${String(r[3]).toLowerCase()}`;
+const keyOf = (r) => `${r[0]}|${r[1]}|${normMarket(r[2])}|${String(r[3]).toLowerCase()}`;
 const lockMsg = (file) => `Cannot write to ${file}. If it is open in Excel, close it and try again.`;
 
 async function appendXlsx(file, fresh) {
@@ -361,7 +401,9 @@ async function appendXlsx(file, fresh) {
   let best = null;
   wb.eachSheet((ws) => {
     const det = detectHeader(ws);
-    if (det && (!best || ws.rowCount > best.ws.rowCount)) best = { ws, det };
+    if (!det) return;
+    const pref = /live/i.test(ws.name) ? 1e9 : ws.rowCount; // a sheet called "Live..." wins
+    if (!best || pref > best.pref) best = { ws, det, pref };
   });
   if (!best) throw new Error("Could not find the price table inside " + file);
   const { ws, det } = best;
@@ -410,6 +452,9 @@ async function appendXlsx(file, fresh) {
       else if (c === map.avg) val = priceVal(avg);
       else if (c === map.state) val = "Karnataka";
       else if (c === map.commodity) val = "Arecanut(Betelnut/Supari)";
+      else if (c === map.source) val = "AGMARKNET";
+      else if (c === map.unit) val = "Rs./Quintal";
+      else if (c === map.location) val = "Karnataka, India";
       if (val !== null) cell.value = val;
     });
   });
@@ -501,5 +546,6 @@ async function buildPrebuilt() {
 module.exports = {
   buildPrebuilt,
   KARNATAKA_DISTRICTS, canonDistrict, districtFor, parseHtml, parseXlsx, readWorkbook, detectHeader, cellValue,
+  normVariety, parsePrice, normMarket, inferDistricts,
   loadRows, appendRows, resolveDatasetPath, listSourceFiles, readText, cellsOf, mapHeaders, validMap, parseDate,
 };
