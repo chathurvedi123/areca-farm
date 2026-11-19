@@ -64,7 +64,7 @@
             "type": "chrome",
             "request": "launch",
             "name": "Launch Chrome against localhost",
-            "url": "https://areca-farm-qfqo-five.vercel.app",
+            "url": "https://areca-farm-ax3h.vercel.app",
             "webRoot": "${workspaceFolder}"
         }
     ]
